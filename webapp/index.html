@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Stock Alert Dashboard</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+        
+        .status-bar {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .status-bar.connected { color: #4CAF50; }
+        .status-bar.disconnected { color: #f44336; }
+        
+        .alert-banner {
+            background: #ff9800;
+            color: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 10px;
+            display: none;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        
+        .alert-banner.show {
+            display: block;
+            animation: slideDown 0.5s;
+        }
+        
+        @keyframes slideDown {
+            from { transform: translateY(-50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        table {
+            width: 100%;
+            background: white;
+            border-collapse: collapse;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        
+        th {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+        }
+        
+        td {
+            padding: 15px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        tbody tr:hover {
+            background: #f5f5f5;
+            transition: 0.3s;
+        }
+        
+        .ticker { font-weight: bold; font-size: 16px; }
+        .price { font-size: 18px; font-weight: 600; }
+        .price-up { color: #4CAF50; animation: pulse 0.5s; }
+        .price-down { color: #f44336; animation: pulse 0.5s; }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+        
+        input, select, button {
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            transition: 0.3s;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📈 Real-Time Stock Alert Dashboard</h1>
+        
+        <div id="status" class="status-bar">Connecting...</div>
+        <div id="alertBanner" class="alert-banner"></div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Ticker</th>
+                    <th>Company</th>
+                    <th>Current Price</th>
+                    <th>Alert Threshold</th>
+                    <th>Type</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="stockTable">
+                <tr><td colspan="6" style="text-align:center;">⏳ Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        let stocks = {};
+        let firstLoad = true;
+        
+        const priceStream = new EventSource('/api/stream-prices');
+        const alertStream = new EventSource('/api/stream-alerts');
+        
+        priceStream.onopen = () => {
+            document.getElementById('status').textContent = '✅ Connected - Live Updates';
+            document.getElementById('status').className = 'status-bar connected';
+        };
+        
+        priceStream.onmessage = (e) => {
+            const data = JSON.parse(e.data);
+            updateRow(data);
+        };
+        
+        priceStream.onerror = () => {
+            document.getElementById('status').textContent = '❌ Disconnected';
+            document.getElementById('status').className = 'status-bar disconnected';
+        };
+        
+        alertStream.onmessage = (e) => {
+            const alert = JSON.parse(e.data);
+            showAlert(alert);
+        };
+        
+        function updateRow(data) {
+            if (firstLoad) {
+                document.getElementById('stockTable').innerHTML = '';
+                firstLoad = false;
+            }
+            
+            const { ticker, price, company } = data;
+            let row = document.getElementById(`row-${ticker}`);
+            
+            if (!row) {
+                row = document.createElement('tr');
+                row.id = `row-${ticker}`;
+                row.innerHTML = `
+                    <td class="ticker">${ticker}</td>
+                    <td>${company || ticker}</td>
+                    <td class="price" id="price-${ticker}">$${price.toFixed(2)}</td>
+                    <td><input type="number" id="thresh-${ticker}" placeholder="150.00"></td>
+                    <td>
+                        <select id="type-${ticker}">
+                            <option value="above">Above</option>
+                            <option value="below">Below</option>
+                        </select>
+                    </td>
+                    <td><button onclick="setAlert('${ticker}')">Set Alert</button></td>
+                `;
+                document.getElementById('stockTable').appendChild(row);
+            } else {
+                const priceCell = document.getElementById(`price-${ticker}`);
+                const oldPrice = parseFloat(priceCell.textContent.replace('$', ''));
+                priceCell.textContent = `$${price.toFixed(2)}`;
+                priceCell.className = 'price';
+                
+                if (price > oldPrice) priceCell.classList.add('price-up');
+                else if (price < oldPrice) priceCell.classList.add('price-down');
+            }
+            
+            stocks[ticker] = data;
+        }
+        
+        async function setAlert(ticker) {
+            const threshold = document.getElementById(`thresh-${ticker}`).value;
+            const type = document.getElementById(`type-${ticker}`).value;
+            
+            if (!threshold) return alert('Enter threshold price');
+            
+            const res = await fetch('/api/set-alert', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ ticker, threshold, type })
+            });
+            
+            const result = await res.json();
+            alert('✅ ' + result.message);
+        }
+        
+        function showAlert(alert) {
+            const banner = document.getElementById('alertBanner');
+            banner.innerHTML = `<h2>🚨 Alert!</h2><p>${alert.message}</p>`;
+            banner.classList.add('show');
+            setTimeout(() => banner.classList.remove('show'), 10000);
+            
+            if (Notification.permission === 'granted') {
+                new Notification('Stock Alert!', { body: alert.message });
+            }
+        }
+        
+        if (Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+    </script>
+</body>
+</html>
