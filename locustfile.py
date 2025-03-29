@@ -8,14 +8,14 @@ class StockDashboardUser(HttpUser):
     def view_dashboard(self):
         self.client.get("/")
     
-    @task(1)
-    def set_alert(self):
-        self.client.post("/api/set-alert", json={
-            "ticker": "AAPL",
-            "threshold": 200.0,
-            "type": "above"
-        })
+    # @task(1)
+    # def set_alert(self):
+    #     self.client.post("/api/set-alert", json={
+    #         "ticker": "AAPL",
+    #         "threshold": 200.0,
+    #         "type": "above"
+    #     })
     
-    @task(2)
-    def health_check(self):
-        self.client.get("/health")
+    # @task(2)
+    # def health_check(self):
+    #     self.client.get("/health")

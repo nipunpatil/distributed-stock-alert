@@ -71,7 +71,7 @@ print("=" * 70)
 
 # trakcing last alert time to cooldown
 last_alert_time = {}
-ALERT_COOLDOWN = 300  
+# ALERT_COOLDOWN = 0
 
 def check_alert(ticker, price):
     """Check if price triggers an alert"""
