@@ -71,7 +71,7 @@ print("=" * 70)
 
 # trakcing last alert time to cooldown
 last_alert_time = {}
-# ALERT_COOLDOWN = 0
+ALERT_COOLDOWN = 10
 
 def check_alert(ticker, price):
     """Check if price triggers an alert"""
@@ -111,6 +111,10 @@ def check_alert(ticker, price):
             "timestamp": time.time(),
             "message": f"{ticker} is {alert_type} ${threshold:.2f} (Current: ${price:.2f})"
         }
+        redis_client.delete(alert_key)
+        print(f"[Cleanup] Alert cleared for {ticker} - User can set new alert now")
+        
+        return alert_message
     
     return None
 
