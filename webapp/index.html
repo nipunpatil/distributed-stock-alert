@@ -15,15 +15,23 @@
         }
         
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
         }
         
         h1 {
             color: white;
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 10px;
             font-size: 2.5em;
+        }
+        
+        .user-info {
+            color: white;
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 0.9em;
+            opacity: 0.8;
         }
         
         .status-bar {
@@ -58,13 +66,120 @@
             to { transform: translateY(0); opacity: 1; }
         }
         
-        table {
-            width: 100%;
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        @media (max-width: 1200px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .stock-table-container {
             background: white;
-            border-collapse: collapse;
             border-radius: 15px;
             overflow: hidden;
             box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        
+        .alerts-panel {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        
+        .alerts-panel h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .alert-count {
+            background: #667eea;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+        }
+        
+        .alert-item {
+            background: #f8f9fa;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            position: relative;
+            transition: all 0.3s;
+        }
+        
+        .alert-item:hover {
+            background: #e9ecef;
+            transform: translateX(5px);
+        }
+        
+        .alert-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        
+        .alert-ticker {
+            font-weight: bold;
+            font-size: 1.1em;
+            color: #333;
+        }
+        
+        .alert-delete-btn {
+            background: #f44336;
+            color: white;
+            border: none;
+            padding: 4px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85em;
+            transition: 0.2s;
+        }
+        
+        .alert-delete-btn:hover {
+            background: #d32f2f;
+        }
+        
+        .alert-details {
+            font-size: 0.9em;
+            color: #666;
+        }
+        
+        .alert-type-above {
+            color: #4CAF50;
+            font-weight: 600;
+        }
+        
+        .alert-type-below {
+            color: #f44336;
+            font-weight: 600;
+        }
+        
+        .no-alerts {
+            text-align: center;
+            color: #999;
+            padding: 40px 20px;
+            font-style: italic;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
         }
         
         th {
@@ -115,38 +230,69 @@
             transform: translateY(-2px);
             box-shadow: 0 4px 8px rgba(0,0,0,0.2);
         }
+        
+        /* Audio element hidden */
+        #alertSound {
+            display: none;
+        }
     </style>
 </head>
 <body>
+    <!-- USER_ID_PLACEHOLDER -->
+    
     <div class="container">
         <h1>📈 Real-Time Stock Alert Dashboard</h1>
+        <div class="user-info">User ID: <span id="userIdDisplay">Loading...</span></div>
         
         <div id="status" class="status-bar">Connecting...</div>
         <div id="alertBanner" class="alert-banner"></div>
         
-        <table>
-            <thead>
-                <tr>
-                    <th>Ticker</th>
-                    <th>Company</th>
-                    <th>Current Price</th>
-                    <th>Alert Threshold</th>
-                    <th>Type</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody id="stockTable">
-                <tr><td colspan="6" style="text-align:center;">⏳ Loading...</td></tr>
-            </tbody>
-        </table>
+        <div class="dashboard-grid">
+            <div class="stock-table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Ticker</th>
+                            <th>Company</th>
+                            <th>Current Price</th>
+                            <th>Alert Threshold</th>
+                            <th>Type</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="stockTable">
+                        <tr><td colspan="6" style="text-align:center;">⏳ Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="alerts-panel">
+                <h2>
+                    Active Alerts
+                    <span class="alert-count" id="alertCount">0</span>
+                </h2>
+                <div id="alertsList">
+                    <div class="no-alerts">No active alerts. Set one to get started!</div>
+                </div>
+            </div>
+        </div>
     </div>
+    
+    <audio id="alertSound" preload="auto">
+        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2W58ueeSwkO" type="audio/wav">
+    </audio>
 
     <script>
         let stocks = {};
         let firstLoad = true;
+        let userId = window.USER_ID || 'unknown';
+        let activeAlerts = [];
+        
+        document.getElementById('userIdDisplay').textContent = userId.substring(0, 8) + '...';
         
         const priceStream = new EventSource('/api/stream-prices');
         const alertStream = new EventSource('/api/stream-alerts');
+        const alertSound = document.getElementById('alertSound');
         
         priceStream.onopen = () => {
             document.getElementById('status').textContent = '✅ Connected - Live Updates';
@@ -166,6 +312,8 @@
         alertStream.onmessage = (e) => {
             const alert = JSON.parse(e.data);
             showAlert(alert);
+            playAlertSound();
+            loadAlerts(); // Refresh alerts list
         };
         
         function updateRow(data) {
@@ -184,7 +332,7 @@
                     <td class="ticker">${ticker}</td>
                     <td>${company || ticker}</td>
                     <td class="price" id="price-${ticker}">$${price.toFixed(2)}</td>
-                    <td><input type="number" id="thresh-${ticker}" placeholder="150.00"></td>
+                    <td><input type="number" id="thresh-${ticker}" placeholder="150.00" step="0.01"></td>
                     <td>
                         <select id="type-${ticker}">
                             <option value="above">Above</option>
@@ -213,19 +361,80 @@
             
             if (!threshold) return alert('Enter threshold price');
             
-            const res = await fetch('/api/set-alert', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ ticker, threshold, type })
-            });
+            try {
+                const res = await fetch('/api/set-alert', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ ticker, threshold: parseFloat(threshold), type })
+                });
+                
+                const result = await res.json();
+                alert('✅ ' + result.message);
+                
+                // Clear inputs
+                document.getElementById(`thresh-${ticker}`).value = '';
+                
+                // Reload alerts list
+                loadAlerts();
+            } catch (err) {
+                alert('❌ Error setting alert');
+            }
+        }
+        
+        async function loadAlerts() {
+            try {
+                const res = await fetch('/api/get-alerts');
+                const data = await res.json();
+                activeAlerts = data.alerts || [];
+                
+                document.getElementById('alertCount').textContent = activeAlerts.length;
+                
+                const alertsList = document.getElementById('alertsList');
+                
+                if (activeAlerts.length === 0) {
+                    alertsList.innerHTML = '<div class="no-alerts">No active alerts. Set one to get started!</div>';
+                } else {
+                    alertsList.innerHTML = activeAlerts.map(alert => `
+                        <div class="alert-item">
+                            <div class="alert-item-header">
+                                <span class="alert-ticker">${alert.ticker}</span>
+                                <button class="alert-delete-btn" onclick="deleteAlert('${alert.alert_id}')">Delete</button>
+                            </div>
+                            <div class="alert-details">
+                                <span class="alert-type-${alert.type}">
+                                    ${alert.type === 'above' ? '↑' : '↓'} ${alert.type.toUpperCase()}
+                                </span>
+                                $${alert.threshold.toFixed(2)}
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (err) {
+                console.error('Error loading alerts:', err);
+            }
+        }
+        
+        async function deleteAlert(alertId) {
+            if (!confirm('Delete this alert?')) return;
             
-            const result = await res.json();
-            alert('✅ ' + result.message);
+            try {
+                const res = await fetch(`/api/delete-alert/${alertId}`, {
+                    method: 'DELETE'
+                });
+                
+                if (res.ok) {
+                    loadAlerts();
+                } else {
+                    alert('❌ Error deleting alert');
+                }
+            } catch (err) {
+                alert('❌ Error deleting alert');
+            }
         }
         
         function showAlert(alert) {
             const banner = document.getElementById('alertBanner');
-            banner.innerHTML = `<h2>🚨 Alert!</h2><p>${alert.message}</p>`;
+            banner.innerHTML = `<h2>🚨 Alert Triggered!</h2><p>${alert.message}</p>`;
             banner.classList.add('show');
             setTimeout(() => banner.classList.remove('show'), 10000);
             
@@ -233,6 +442,17 @@
                 new Notification('Stock Alert!', { body: alert.message });
             }
         }
+        
+        function playAlertSound() {
+            alertSound.currentTime = 0;
+            alertSound.play().catch(err => console.log('Audio play failed:', err));
+        }
+        
+        // Load alerts on page load
+        loadAlerts();
+        
+        // Refresh alerts every 30 seconds
+        setInterval(loadAlerts, 30000);
         
         if (Notification.permission === 'default') {
             Notification.requestPermission();

@@ -28,7 +28,7 @@ if producer is None:
     exit(1)
 
 tickers = [
-    'AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA',
+    '^NSEI', '^NSEBANK', 'AXISBANK.NS', 'HDFCBANK.NS', 'ICICIBANK.NS',
     'GC=F', 'SI=F', 'CL=F', 'NG=F', 'HG=F',
     'BTC-USD', 'ETH-USD', 'BNB-USD', 'SOL-USD', 'XRP-USD'
 ]

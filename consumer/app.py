@@ -4,16 +4,16 @@ import redis
 import json
 import time
 
-print("ctarting alert evaluator consumer...")
+print("Starting alert evaluator consumer...")
 
 # Connect to Redis
-print("connecting to redis...")
+print("Connecting to redis...")
 try:
     redis_client = redis.Redis(host='redis', port=6379, decode_responses=True)
     redis_client.ping()
-    print("connected to redis")
+    print("Connected to redis")
 except Exception as e:
-    print(f"redis connection failed: {e}")
+    print(f"Redis connection failed: {e}")
     exit(1)
 
 # Connect to Kafka Consumer
@@ -32,7 +32,7 @@ while retry_count < max_retries:
             enable_auto_commit=True,
             group_id='alert-evaluators'
         )
-        print("connected to kafka consumer!")
+        print("Connected to kafka consumer!")
         break
     except NoBrokersAvailable:
         retry_count += 1
@@ -44,7 +44,7 @@ if consumer is None:
     exit(1)
 
 # Connect to Kafka Producer
-print("connecting to kafka producer...")
+print("Connecting to kafka producer...")
 producer = None
 retry_count = 0
 
@@ -54,69 +54,87 @@ while retry_count < max_retries:
             bootstrap_servers=['kafka:9092'],
             value_serializer=lambda v: json.dumps(v).encode('utf-8')
         )
-        print("connected to kafka producer :-)) ")
+        print("Connected to kafka producer!")
         break
     except:
         retry_count += 1
-        print(f"retring {retry_count}/{max_retries}")
+        print(f"Retrying {retry_count}/{max_retries}")
         time.sleep(5)
 
 if producer is None:
-    print("failed to connect tp kafka")
+    print("Failed to connect to kafka producer")
     exit(1)
 
-#above connection done now just checking the messages
-print(" monitoring stock prices for alerts...")
+print("Monitoring stock prices for alerts...")
 print("=" * 70)
 
-# trakcing last alert time to cooldown
+# Tracking last alert time per alert_id for cooldown
 last_alert_time = {}
 ALERT_COOLDOWN = 10
 
-def check_alert(ticker, price):
-    """Check if price triggers an alert"""
-    alert_key = f"alerts:{ticker}"
+def check_alerts_for_ticker(ticker, price):
+    """Check all alerts for a specific ticker and return triggered ones"""
+    triggered_alerts = []
     
-    # alert there ?
-
-    if not redis_client.exists(alert_key):
-        return None
+    # Get all alert IDs for this ticker
+    alert_ids = redis_client.smembers(f"ticker_alerts:{ticker}")
     
-    # cooldonw checking 
+    if not alert_ids:
+        return triggered_alerts
+    
     current_time = time.time()
-    if ticker in last_alert_time:
-        time_since_last = current_time - last_alert_time[ticker]
-        if time_since_last < ALERT_COOLDOWN:
-            return None  
     
-    # getting the alert config
-    alert_config = redis_client.hgetall(alert_key)
-    threshold = float(alert_config['threshold'])
-    alert_type = alert_config['type']
-    
-    # Check if triggered
-    triggered = False
-    if alert_type == 'above' and price > threshold:
-        triggered = True
-    elif alert_type == 'below' and price < threshold:
-        triggered = True
-    
-    if triggered:
-        last_alert_time[ticker] = current_time
-        return {
-            "ticker": ticker,
-            "price": price,
-            "threshold": threshold,
-            "type": alert_type,
-            "timestamp": time.time(),
-            "message": f"{ticker} is {alert_type} ${threshold:.2f} (Current: ${price:.2f})"
-        }
-        redis_client.delete(alert_key)
-        print(f"[Cleanup] Alert cleared for {ticker} - User can set new alert now")
+    for alert_id in alert_ids:
+        # Check cooldown for this specific alert
+        if alert_id in last_alert_time:
+            time_since_last = current_time - last_alert_time[alert_id]
+            if time_since_last < ALERT_COOLDOWN:
+                continue
         
-        return alert_message
+        # Get alert configuration
+        alert_data = redis_client.hgetall(f"alert:{alert_id}")
+        
+        if not alert_data:
+            # Alert was deleted, clean up
+            redis_client.srem(f"ticker_alerts:{ticker}", alert_id)
+            continue
+        
+        threshold = float(alert_data['threshold'])
+        alert_type = alert_data['type']
+        user_id = alert_data['user_id']
+        
+        # Check if triggered
+        triggered = False
+        if alert_type == 'above' and price > threshold:
+            triggered = True
+        elif alert_type == 'below' and price < threshold:
+            triggered = True
+        
+        if triggered:
+            last_alert_time[alert_id] = current_time
+            
+            alert_message = {
+                "alert_id": alert_id,
+                "user_id": user_id,
+                "ticker": ticker,
+                "price": price,
+                "threshold": threshold,
+                "type": alert_type,
+                "timestamp": current_time,
+                "message": f"{ticker} is {alert_type} ${threshold:.2f} (Current: ${price:.2f})"
+            }
+            
+            triggered_alerts.append(alert_message)
+            
+            # Delete the alert after triggering
+            redis_client.srem(f"user_alerts:{user_id}", alert_id)
+            redis_client.srem(f"ticker_alerts:{ticker}", alert_id)
+            redis_client.delete(f"alert:{alert_id}")
+            
+            print(f"[ALERT TRIGGERED] User {user_id[:8]}... | {ticker} {alert_type} ${threshold:.2f} | Current: ${price:.2f}")
+            print(f"[CLEANUP] Alert {alert_id[:8]}... deleted")
     
-    return None
+    return triggered_alerts
 
 # Process messages
 for message in consumer:
@@ -125,16 +143,14 @@ for message in consumer:
         ticker = data['ticker']
         price = data['price']
         
-        # Check if triggered
-        alert = check_alert(ticker, price)
+        # Check all alerts for this ticker
+        triggered_alerts = check_alerts_for_ticker(ticker, price)
         
-        if alert:
-            # Send alert
+        # Send each triggered alert to Kafka
+        for alert in triggered_alerts:
             producer.send('alerts', value=alert)
             producer.flush()
-            
-            print(f"ALERT: {alert['message']}")
             print("=" * 70)
             
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error processing message: {e}")
