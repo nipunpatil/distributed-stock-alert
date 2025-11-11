@@ -68,7 +68,7 @@ This system monitors 15+ assets (stocks, commodities, crypto) in real-time and t
 ### 1. Producer Service (Stock Price Fetcher)
 **Tech:** Python + yfinance + Kafka Producer  
 **Function:** Fetches real-time prices every 1 second, publishes to stock-prices topic  
-**Assets:** AAPL, GOOGL, MSFT, TSLA, BTC-USD, ETH-USD, Gold, Silver, etc.  
+**Assets:** SBI, GOOGL, MSFT, TSLA, BTC-USD, ETH-USD, Gold, Silver, etc.  
 **Scalability:** Stateless, can run multiple instances with ticker distribution
 
 ### 2. Kafka Broker (Message Bus)
@@ -136,17 +136,17 @@ DELETE /api/delete-alert/{id} - Remove alert
 ## 📊 Data Flow
 
 ### Flow 1: Stock Price Update
-1. Producer fetches AAPL: $178.52 from Yahoo Finance  
+1. Producer fetches SBI: ₹178.52 from Yahoo Finance  
 2. Producer → Kafka (stock-prices topic)  
 3. Kafka → Consumer (alert-evaluators group)  
-4. Consumer checks Redis: ticker_alerts:AAPL → [alert_1, alert_2]  
+4. Consumer checks Redis: ticker_alerts:SBI → [alert_1, alert_2]  
 5. Consumer evaluates: price > threshold?  
 6. If triggered: Publishes to Kafka (alerts topic) + Deletes alert from Redis  
 7. Kafka → WebApp (SSE stream) → Filters by user_id  
 8. WebApp → User's browser (SSE) → Shows alert banner + beep
 
 ### Flow 2: User Sets Alert
-1. User clicks "Set Alert": AAPL above $180  
+1. User clicks "Set Alert": SBI above ₹180  
 2. Browser POST /api/set-alert (with user_id cookie)  
 3. WebApp generates alert_id = uuid-456  
 4. WebApp writes to Redis (3 ops: HSET + SADD + SADD)  
@@ -154,7 +154,7 @@ DELETE /api/delete-alert/{id} - Remove alert
 6. Browser refreshes alerts panel (GET /api/get-alerts)
 
 ### Flow 3: Alert Triggered
-1. AAPL price crosses $180.50 (threshold: $180)  
+1. SBI price crosses ₹180.50 (threshold: ₹180)  
 2. Consumer publishes to Kafka alerts topic  
 3. Redis cleanup (SREM + DEL)  
 4. WebApp receives → Filters by user_id  
